@@ -3,7 +3,6 @@
 # Client bundles produced by EasyRSA scripts
 clients/
 .env
-.env.*
 docker-compose.override.yml
 # Compose artefacts
 docker-compose.rendered.yml
