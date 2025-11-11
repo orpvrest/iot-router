@@ -111,6 +111,7 @@ services:
     volumes:
       - ./config/nginx-edge/nginx.conf.tpl:/etc/nginx/templates/nginx.conf.tpl:ro
       - ./config/nginx-edge/ssl-params.conf:/etc/nginx/templates/ssl-params.conf:ro
+      - ./config/nginx-edge/render.sh:/etc/nginx/render.sh:ro
       - ./data/certbot:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
     ports:
@@ -122,25 +123,7 @@ services:
     networks:
       - edge-net
       - monitor-net
-    command: >-
-      /bin/sh -c "set -e;
-      mkdir -p /etc/nginx/snippets;
-      FORWARD_STREAMS='';
-      if [ -n \"${VPN_FORWARD_TCP}\" ]; then
-        while IFS= read -r entry; do
-          entry=$(echo \"$$entry\" | xargs);
-          [ -z \"$$entry\" ] && continue;
-          port=$(echo \"$$entry\" | cut -d':' -f2);
-          [ -z \"$$port\" ] && continue;
-          FORWARD_STREAMS=\"$(printf '%s\\\\n  server {\\\\n    listen 0.0.0.0:%s;\\\\n    proxy_pass openvpn-core:%s;\\\\n  }\\\\n' \"$$FORWARD_STREAMS\" \"$$port\" \"$$port\")\";
-        done <<EOS
-          $(printf '%s' \"${VPN_FORWARD_TCP}\" | tr ',' '\n')
-        EOS
-      fi;
-      export FORWARD_STREAMS;
-      envsubst '$$VPN_SNI_DOMAIN $$SITE_SNI_DOMAIN $$FORWARD_STREAMS' < /etc/nginx/templates/nginx.conf.tpl > /etc/nginx/nginx.conf;
-      cp /etc/nginx/templates/ssl-params.conf /etc/nginx/snippets/ssl-params.conf;
-      nginx -g 'daemon off;'"
+    command: ["/bin/sh", "/etc/nginx/render.sh"]
     healthcheck:
       test: ["CMD-SHELL", "/bin/sh -c 'wget -q -O- http://127.0.0.1/healthz >/dev/null'"]
       interval: 30s
