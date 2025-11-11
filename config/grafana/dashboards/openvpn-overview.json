@@ -1,0 +1,98 @@
+{
+  "id": null,
+  "uid": "openvpn-overview",
+  "title": "OpenVPN & Host Overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Connected Clients",
+      "id": 1,
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "count(openvpn_client_tun_tap_read_bytes_total)",
+          "legendFormat": "clients",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": ["last"],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "OpenVPN Traffic (5m rate)",
+      "id": 2,
+      "gridPos": { "x": 6, "y": 0, "w": 18, "h": 6 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(openvpn_client_tcp_udp_read_bytes_total[5m]))",
+          "legendFormat": "Ingress",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(openvpn_client_tcp_udp_write_bytes_total[5m]))",
+          "legendFormat": "Egress",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Host CPU Utilization",
+      "id": 3,
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 7 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode='idle'}[5m])) * 100)",
+          "legendFormat": "CPU %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Container CPU (cAdvisor)",
+      "id": 4,
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 7 },
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name!~'/(POD|kubepods)'}[5m]))",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

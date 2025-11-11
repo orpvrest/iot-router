@@ -1,0 +1,286 @@
+services:
+  openvpn-core:
+    image: iot-router-openvpn
+    build:
+      context: ./services/openvpn
+    container_name: openvpn-core
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      VPN_SERVER_CN: ${VPN_SERVER_CN}
+      VPN_ORG: ${VPN_ORG}
+      VPN_EMAIL: ${VPN_EMAIL}
+      VPN_NETWORK: ${VPN_NETWORK}
+      VPN_NETMASK: ${VPN_NETMASK}
+      VPN_PUBLIC_ENDPOINT: ${VPN_PUBLIC_ENDPOINT}
+      VPN_SNI_DOMAIN: ${VPN_SNI_DOMAIN}
+      VPN_DNS: ${VPN_DNS}
+      VPN_PUSH_ROUTES: ${VPN_PUSH_ROUTES}
+      VPN_STATIC_CLIENTS: ${VPN_STATIC_CLIENTS}
+      VPN_FORWARD_TCP: ${VPN_FORWARD_TCP}
+      DEFAULT_CLIENTS: ${DEFAULT_CLIENTS}
+      OPENVPN_TCP_PORT: ${OPENVPN_TCP_PORT}
+      OPENVPN_LOCAL_PORT: ${OPENVPN_LOCAL_PORT}
+      VPN_MANAGEMENT_HOST: ${VPN_MANAGEMENT_HOST}
+      VPN_MANAGEMENT_PORT: ${VPN_MANAGEMENT_PORT}
+      EDGE_TLS_PORT: ${EDGE_TLS_PORT:-443}
+    volumes:
+      - ./data/openvpn:/etc/openvpn
+    ports:
+      - "${OPENVPN_TCP_PORT}:${OPENVPN_LOCAL_PORT}/tcp"
+    networks:
+      - vpn-net
+      - monitor-net
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/bash -c 'pgrep -f \"/usr/sbin/openvpn\" >/dev/null'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  easyrsa-init:
+    image: iot-router-openvpn
+    profiles: ["ops"]
+    restart: "no"
+    entrypoint: ["/opt/openvpn/scripts/bootstrap-pki.sh"]
+    command: ["--only-pki", "--regenerate-clients"]
+    environment:
+      TZ: ${TZ}
+      VPN_SERVER_CN: ${VPN_SERVER_CN}
+      VPN_ORG: ${VPN_ORG}
+      VPN_EMAIL: ${VPN_EMAIL}
+      VPN_NETWORK: ${VPN_NETWORK}
+      VPN_NETMASK: ${VPN_NETMASK}
+      VPN_PUBLIC_ENDPOINT: ${VPN_PUBLIC_ENDPOINT}
+      VPN_SNI_DOMAIN: ${VPN_SNI_DOMAIN}
+      VPN_DNS: ${VPN_DNS}
+      VPN_PUSH_ROUTES: ${VPN_PUSH_ROUTES}
+      VPN_STATIC_CLIENTS: ${VPN_STATIC_CLIENTS}
+      DEFAULT_CLIENTS: ${DEFAULT_CLIENTS}
+      OPENVPN_TCP_PORT: ${OPENVPN_TCP_PORT}
+      OPENVPN_LOCAL_PORT: ${OPENVPN_LOCAL_PORT}
+      VPN_MANAGEMENT_PORT: ${VPN_MANAGEMENT_PORT}
+      EDGE_TLS_PORT: ${EDGE_TLS_PORT:-443}
+    volumes:
+      - ./data/openvpn:/etc/openvpn
+    networks:
+      - vpn-net
+
+  stunnel:
+    image: iot-router-stunnel
+    build:
+      context: ./services/stunnel
+    restart: unless-stopped
+    depends_on:
+      - openvpn-core
+    environment:
+      VPN_SNI_DOMAIN: ${VPN_SNI_DOMAIN}
+      STUNNEL_ACCEPT_PORT: ${STUNNEL_ACCEPT_PORT:-8443}
+      STUNNEL_FORWARD_PORT: ${OPENVPN_LOCAL_PORT}
+    volumes:
+      - ./data/certbot:/certs
+    networks:
+      - edge-net
+      - vpn-net
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/sh -c 'test -f /tmp/stunnel.pid && kill -0 $(cat /tmp/stunnel.pid)'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  nginx-edge:
+    image: nginx:1.25-alpine
+    restart: unless-stopped
+    depends_on:
+      - stunnel
+      - grafana
+    environment:
+      VPN_SNI_DOMAIN: ${VPN_SNI_DOMAIN}
+      SITE_SNI_DOMAIN: ${SITE_SNI_DOMAIN}
+      VPN_FORWARD_TCP: ${VPN_FORWARD_TCP}
+    volumes:
+      - ./config/nginx-edge/nginx.conf.tpl:/etc/nginx/templates/nginx.conf.tpl:ro
+      - ./config/nginx-edge/ssl-params.conf:/etc/nginx/templates/ssl-params.conf:ro
+      - ./data/certbot:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    ports:
+      # Port-forward ranges expose VPN client services defined in VPN_FORWARD_TCP
+      - "80:80"
+      - "443:443"
+      - "${FORWARD_TCP_RANGE_PRIMARY:-20020-20039}:${FORWARD_TCP_RANGE_PRIMARY:-20020-20039}"
+      - "${FORWARD_TCP_RANGE_SECONDARY:-20060-20079}:${FORWARD_TCP_RANGE_SECONDARY:-20060-20079}"
+    networks:
+      - edge-net
+      - monitor-net
+    command: >-
+      /bin/sh -c "set -e;
+      mkdir -p /etc/nginx/snippets;
+      FORWARD_STREAMS='';
+      if [ -n \"${VPN_FORWARD_TCP}\" ]; then
+        while IFS= read -r entry; do
+          entry=$(echo \"$$entry\" | xargs);
+          [ -z \"$$entry\" ] && continue;
+          port=$(echo \"$$entry\" | cut -d':' -f2);
+          [ -z \"$$port\" ] && continue;
+          FORWARD_STREAMS=\"$(printf '%s\\\\n  server {\\\\n    listen 0.0.0.0:%s;\\\\n    proxy_pass openvpn-core:%s;\\\\n  }\\\\n' \"$$FORWARD_STREAMS\" \"$$port\" \"$$port\")\";
+        done <<EOS
+          $(printf '%s' \"${VPN_FORWARD_TCP}\" | tr ',' '\n')
+        EOS
+      fi;
+      export FORWARD_STREAMS;
+      envsubst '$$VPN_SNI_DOMAIN $$SITE_SNI_DOMAIN $$FORWARD_STREAMS' < /etc/nginx/templates/nginx.conf.tpl > /etc/nginx/nginx.conf;
+      cp /etc/nginx/templates/ssl-params.conf /etc/nginx/snippets/ssl-params.conf;
+      nginx -g 'daemon off;'"
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/sh -c 'wget -q -O- http://127.0.0.1/healthz >/dev/null'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  certbot:
+    image: certbot/certbot:latest
+    profiles: ["acme"]
+    restart: "no"
+    depends_on:
+      - nginx-edge
+    environment:
+      LE_EMAIL: ${LE_EMAIL}
+      VPN_SNI_DOMAIN: ${VPN_SNI_DOMAIN}
+      SITE_SNI_DOMAIN: ${SITE_SNI_DOMAIN}
+      ACME_STAGING: ${ACME_STAGING}
+    volumes:
+      - ./data/certbot:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh"
+    command: >-
+      -c "if [ \"${ACME_STAGING}\" = \"true\" ]; then STAGING_FLAG=--staging; else STAGING_FLAG=; fi && \
+      certbot certonly --non-interactive --agree-tos --webroot -w /var/www/certbot \
+        -d ${VPN_SNI_DOMAIN} -d ${SITE_SNI_DOMAIN} --email ${LE_EMAIL} $$STAGING_FLAG && \
+      certbot renew --dry-run $$STAGING_FLAG"
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=${PROMETHEUS_RETENTION}"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-storage:/prometheus
+    networks:
+      - monitor-net
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/sh -c 'wget -q --spider http://127.0.0.1:9090/-/healthy'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  grafana:
+    image: grafana/grafana:10.4.3
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SERVER_ROOT_URL: https://${SITE_SNI_DOMAIN}
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-storage:/var/lib/grafana
+    networks:
+      - monitor-net
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/sh -c 'wget -q --spider http://127.0.0.1:3000/api/health'"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.1
+    restart: unless-stopped
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/host"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro
+    labels:
+      org.opencontainers.image.description: "Node Exporter"
+    networks:
+      - monitor-net
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/sh -c 'wget -q --spider http://127.0.0.1:9100/metrics'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RESOURCE
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitor-net
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/sh -c 'wget -q --spider http://127.0.0.1:8080/metrics'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  openvpn-exporter:
+    image: kumina/openvpn-exporter:v0.2.2
+    restart: unless-stopped
+    depends_on:
+      - openvpn-core
+    command:
+      - "-openvpn.status_paths=/status/openvpn-status.log"
+    volumes:
+      - ./data/openvpn/status:/status:ro
+    networks:
+      - monitor-net
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/sh -c 'wget -q --spider http://127.0.0.1:9176/metrics'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+networks:
+  edge-net:
+    driver: bridge
+  vpn-net:
+    driver: bridge
+  monitor-net:
+    driver: bridge
+volumes:
+  grafana-storage:
+  prometheus-storage:

@@ -1,0 +1,14 @@
+# Runtime data
+/data/
+# Client bundles produced by EasyRSA scripts
+clients/
+.env
+.env.*
+docker-compose.override.yml
+# Compose artefacts
+docker-compose.rendered.yml
+backups/
+# Editor artifacts
+*.swp
+*.swo
+.DS_Store

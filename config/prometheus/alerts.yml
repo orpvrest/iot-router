@@ -1,0 +1,27 @@
+groups:
+  - name: openvpn-stack
+    rules:
+      - alert: OpenVPNDown
+        expr: up{job="openvpn"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "OpenVPN exporter not reporting"
+          description: "openvpn_exporter metrics missing for {{ $labels.instance }}"
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus target unreachable"
+          description: "Prometheus self-monitoring endpoint is down"
+      - alert: HighVPNClients
+        expr: count(openvpn_client_tun_tap_read_bytes_total) > 180
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High VPN client count"
+          description: "{{ $value }} clients connected"

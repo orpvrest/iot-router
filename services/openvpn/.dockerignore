@@ -1,0 +1,7 @@
+*
+!.dockerignore
+!Dockerfile
+!scripts/
+!scripts/**
+!config/
+!config/**

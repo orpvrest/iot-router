@@ -1,0 +1,5 @@
+*
+!.dockerignore
+!Dockerfile
+!entrypoint.sh
+!stunnel.conf.tpl
