@@ -49,8 +49,8 @@ http {
     listen 127.0.0.1:4443 ssl http2;
     server_name ${SITE_SNI_DOMAIN};
 
-    ssl_certificate /etc/letsencrypt/live/${SITE_SNI_DOMAIN}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${SITE_SNI_DOMAIN}/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/${CERTBOT_CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERTBOT_CERT_NAME}/privkey.pem;
     include /etc/nginx/snippets/ssl-params.conf;
 
     location / {

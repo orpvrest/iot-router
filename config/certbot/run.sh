@@ -1,7 +1,7 @@
 #!/bin/sh
 set -euo pipefail
 
-CERT_NAME="${VPN_SNI_DOMAIN}"
+CERT_NAME="${CERTBOT_CERT_NAME:-${VPN_SNI_DOMAIN}}"
 LE_DIR=/etc/letsencrypt
 
 if [ "${ACME_STAGING:-false}" = "true" ]; then

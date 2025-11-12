@@ -3,14 +3,16 @@ set -eu
 TEMPLATE=/etc/stunnel/stunnel.conf.tpl
 TARGET=/etc/stunnel/stunnel.conf
 
+CERTBOT_CERT_NAME=${CERTBOT_CERT_NAME:-${VPN_SNI_DOMAIN:-vpn.example.com}}
+DEFAULT_CERT_DIR="/certs/live/${CERTBOT_CERT_NAME}"
 if [ -z "${STUNNEL_CERT_FILE:-}" ]; then
-  STUNNEL_CERT_FILE="/certs/live/${VPN_SNI_DOMAIN:-vpn.example.com}/fullchain.pem"
+  STUNNEL_CERT_FILE="${DEFAULT_CERT_DIR}/fullchain.pem"
 fi
 if [ -z "${STUNNEL_KEY_FILE:-}" ]; then
-  STUNNEL_KEY_FILE="/certs/live/${VPN_SNI_DOMAIN:-vpn.example.com}/privkey.pem"
+  STUNNEL_KEY_FILE="${DEFAULT_CERT_DIR}/privkey.pem"
 fi
 if [ -z "${STUNNEL_CA_FILE:-}" ]; then
-  STUNNEL_CA_FILE="/certs/live/${VPN_SNI_DOMAIN:-vpn.example.com}/fullchain.pem"
+  STUNNEL_CA_FILE="${DEFAULT_CERT_DIR}/fullchain.pem"
 fi
 if [ -z "${STUNNEL_ACCEPT_PORT:-}" ]; then
   STUNNEL_ACCEPT_PORT=8443
