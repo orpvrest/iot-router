@@ -215,8 +215,6 @@ services:
       - SYS_RESOURCE
     security_opt:
       - no-new-privileges:true
-    ports:
-      - "8080:8080"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
