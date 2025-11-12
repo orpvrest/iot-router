@@ -15,8 +15,6 @@ stream {
     proxy_pass $stream_upstream;
     ssl_preread on;
   }
-
-  ${FORWARD_STREAMS}
 }
 
 http {

@@ -30,15 +30,13 @@ VPN_KEEPALIVE=${VPN_KEEPALIVE:-10 120}
 OUTPUT_DIR=${OUTPUT_DIR:-${CLIENTS_DIR}/packages}
 EDGE_TLS_PORT=${EDGE_TLS_PORT:-443}
 VPN_FORWARD_TCP=${VPN_FORWARD_TCP:-}
-FORWARD_TCP_RANGE_PRIMARY=${FORWARD_TCP_RANGE_PRIMARY:-20020-20039}
-FORWARD_TCP_RANGE_SECONDARY=${FORWARD_TCP_RANGE_SECONDARY:-20060-20079}
+PORT_FORWARD_BIND_ADDR=${PORT_FORWARD_BIND_ADDR:-0.0.0.0}
 
 mkdir -p "${OVPN_DIR}" "${PKI_DIR}" "${CLIENTS_DIR}" "${STATUS_DIR}" "${CCD_DIR}" "${OUTPUT_DIR}"
 
 declare -Ag STATIC_CLIENT_MAP=()
 declare -Ag STATIC_IP_OWNER=()
 declare -a PORT_FORWARD_SPECS=()
-declare -a FORWARD_PORT_RANGES=()
 
 function fatal() {
   echo "[openvpn-common] $*" >&2
@@ -70,34 +68,6 @@ function validate_port() {
   if [[ ! "${port}" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
     fatal "Port '${port}' for ${field} must be between 1 and 65535."
   fi
-}
-
-function _register_forward_range() {
-  local range=$1 label=$2
-  [[ -z "${range}" ]] && return
-  if [[ ! "${range}" =~ ^([0-9]{1,5})-([0-9]{1,5})$ ]]; then
-    fatal "Forward range '${range}' (${label}) must be in start-end format."
-  fi
-  local start=${BASH_REMATCH[1]}
-  local end=${BASH_REMATCH[2]}
-  if (( start > end )); then
-    fatal "Forward range '${range}' (${label}) start > end."
-  fi
-  validate_port "${start}" "${label} start"
-  validate_port "${end}" "${label} end"
-  FORWARD_PORT_RANGES+=("${start}-${end}")
-}
-
-function _port_in_allowed_ranges() {
-  local port=$1
-  for range in "${FORWARD_PORT_RANGES[@]}"; do
-    local start=${range%-*}
-    local end=${range#*-}
-    if (( port >= start && port <= end )); then
-      return 0
-    fi
-  done
-  return 1
 }
 
 function _parse_static_clients() {
@@ -143,8 +113,6 @@ EOF
 }
 
 function _parse_port_forward_specs() {
-  _register_forward_range "${FORWARD_TCP_RANGE_PRIMARY}" "FORWARD_TCP_RANGE_PRIMARY"
-  _register_forward_range "${FORWARD_TCP_RANGE_SECONDARY}" "FORWARD_TCP_RANGE_SECONDARY"
   [[ -z "${VPN_FORWARD_TCP}" ]] && return
   IFS=',' read -ra entries <<< "${VPN_FORWARD_TCP}"
   for entry in "${entries[@]}"; do
@@ -159,9 +127,6 @@ function _parse_port_forward_specs() {
     validate_port "${public_port}" "public port (${label})"
     validate_port "${target_port}" "target port (${label})"
     validate_client_identifier "${client}"
-    if [[ ${#FORWARD_PORT_RANGES[@]} -gt 0 ]] && ! _port_in_allowed_ranges "${public_port}"; then
-      fatal "Port ${public_port} for '${label}' not within allowed ranges ${FORWARD_PORT_RANGES[*]}"
-    fi
     if [[ -z "${STATIC_CLIENT_MAP[${client}]:-}" ]]; then
       fatal "Client '${client}' must have a static IP to use forwarding (VPN_STATIC_CLIENTS)."
     fi

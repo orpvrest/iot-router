@@ -23,8 +23,6 @@ services:
       VPN_PUSH_ROUTES: ${VPN_PUSH_ROUTES}
       VPN_STATIC_CLIENTS: ${VPN_STATIC_CLIENTS}
       VPN_FORWARD_TCP: ${VPN_FORWARD_TCP}
-      FORWARD_TCP_RANGE_PRIMARY: ${FORWARD_TCP_RANGE_PRIMARY:-20020-20039}
-      FORWARD_TCP_RANGE_SECONDARY: ${FORWARD_TCP_RANGE_SECONDARY:-20060-20079}
       OPENVPN_NAT_INTERFACE: ${OPENVPN_NAT_INTERFACE:-}
       OPENVPN_ENABLE_NAT: ${OPENVPN_ENABLE_NAT:-true}
       ENABLE_IP_FORWARD: ${ENABLE_IP_FORWARD:-true}
@@ -88,7 +86,6 @@ services:
       STUNNEL_ACCEPT_PORT: ${STUNNEL_ACCEPT_PORT:-8443}
       STUNNEL_FORWARD_PORT: ${OPENVPN_LOCAL_PORT}
       CERTBOT_CERT_NAME: ${CERTBOT_CERT_NAME:-}
-      STUNNEL_FORWARD_HOST: ${STUNNEL_FORWARD_HOST:-host.docker.internal}
     volumes:
       - ./data/certbot:/certs
     networks:
@@ -113,8 +110,6 @@ services:
       VPN_SNI_DOMAIN: ${VPN_SNI_DOMAIN}
       SITE_SNI_DOMAIN: ${SITE_SNI_DOMAIN}
       CERTBOT_CERT_NAME: ${CERTBOT_CERT_NAME:-}
-      VPN_FORWARD_TCP: ${VPN_FORWARD_TCP}
-      OPENVPN_FORWARD_HOST: ${OPENVPN_FORWARD_HOST:-host.docker.internal}
     volumes:
       - ./config/nginx-edge/nginx.conf.tpl:/etc/nginx/templates/nginx.conf.tpl:ro
       - ./config/nginx-edge/ssl-params.conf:/etc/nginx/templates/ssl-params.conf:ro
@@ -122,16 +117,11 @@ services:
       - ./data/certbot:/etc/letsencrypt
       - ./data/certbot/www:/var/www/certbot
     ports:
-      # Port-forward ranges expose VPN client services defined in VPN_FORWARD_TCP
       - "80:80"
       - "443:443"
-      - "${FORWARD_TCP_RANGE_PRIMARY:-20020-20039}:${FORWARD_TCP_RANGE_PRIMARY:-20020-20039}"
-      - "${FORWARD_TCP_RANGE_SECONDARY:-20060-20079}:${FORWARD_TCP_RANGE_SECONDARY:-20060-20079}"
     networks:
       - edge-net
       - monitor-net
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     command: ["/bin/sh", "/etc/nginx/render.sh"]
     healthcheck:
       test: ["CMD-SHELL", "/bin/sh -c 'wget -q -O- http://127.0.0.1/healthz >/dev/null'"]

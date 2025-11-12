@@ -34,8 +34,8 @@ function start_forwarder() {
   local target_port=$4
   (
     while true; do
-      echo "${FORWARD_LOG_PREFIX} ${label}: listening on ${port} -> ${client_ip}:${target_port}"
-      if ! socat TCP-LISTEN:${port},fork,reuseaddr TCP:${client_ip}:${target_port}; then
+      echo "${FORWARD_LOG_PREFIX} ${label}: listening on ${PORT_FORWARD_BIND_ADDR}:${port} -> ${client_ip}:${target_port}"
+      if ! socat TCP-LISTEN:${port},fork,reuseaddr,bind=${PORT_FORWARD_BIND_ADDR} TCP:${client_ip}:${target_port}; then
         echo "${FORWARD_LOG_PREFIX} ${label}: socat exited unexpectedly; restarting in 2s" >&2
         sleep 2
       fi
