@@ -46,7 +46,8 @@ http {
   }
 
   server {
-    listen 127.0.0.1:4443 ssl http2;
+    listen 127.0.0.1:4443 ssl;
+    http2 on;
     server_name ${SITE_SNI_DOMAIN};
 
     ssl_certificate /etc/letsencrypt/live/${CERTBOT_CERT_NAME}/fullchain.pem;

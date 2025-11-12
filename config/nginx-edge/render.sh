@@ -26,6 +26,15 @@ fi
 
 export FORWARD_STREAMS="$(cat "$TMP_STREAMS")"
 
-envsubst '$$VPN_SNI_DOMAIN $$SITE_SNI_DOMAIN $$FORWARD_STREAMS' < "$TEMPLATE" > "$NGINX_CONF"
+if [ -z "${CERTBOT_CERT_NAME:-}" ]; then
+  if [ -n "${SITE_SNI_DOMAIN:-}" ]; then
+    CERTBOT_CERT_NAME="${SITE_SNI_DOMAIN}"
+  else
+    CERTBOT_CERT_NAME="${VPN_SNI_DOMAIN}"
+  fi
+fi
+export CERTBOT_CERT_NAME
+
+envsubst '$$VPN_SNI_DOMAIN $$SITE_SNI_DOMAIN $$FORWARD_STREAMS $$CERTBOT_CERT_NAME' < "$TEMPLATE" > "$NGINX_CONF"
 cp "$SSL_PARAMS" "$SNIPPET"
 exec nginx -g 'daemon off;'

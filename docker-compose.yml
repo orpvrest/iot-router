@@ -88,6 +88,7 @@ services:
       VPN_SNI_DOMAIN: ${VPN_SNI_DOMAIN}
       STUNNEL_ACCEPT_PORT: ${STUNNEL_ACCEPT_PORT:-8443}
       STUNNEL_FORWARD_PORT: ${OPENVPN_LOCAL_PORT}
+      CERTBOT_CERT_NAME: ${CERTBOT_CERT_NAME:-}
     volumes:
       - ./data/certbot:/certs
     networks:
@@ -109,6 +110,7 @@ services:
     environment:
       VPN_SNI_DOMAIN: ${VPN_SNI_DOMAIN}
       SITE_SNI_DOMAIN: ${SITE_SNI_DOMAIN}
+      CERTBOT_CERT_NAME: ${CERTBOT_CERT_NAME:-}
       VPN_FORWARD_TCP: ${VPN_FORWARD_TCP}
     volumes:
       - ./config/nginx-edge/nginx.conf.tpl:/etc/nginx/templates/nginx.conf.tpl:ro
@@ -144,6 +146,7 @@ services:
       VPN_SNI_DOMAIN: ${VPN_SNI_DOMAIN}
       SITE_SNI_DOMAIN: ${SITE_SNI_DOMAIN}
       ACME_STAGING: ${ACME_STAGING}
+      CERTBOT_CERT_NAME: ${CERTBOT_CERT_NAME:-}
     volumes:
       - ./config/certbot/run.sh:/opt/certbot/run.sh:ro
       - ./data/certbot:/etc/letsencrypt
