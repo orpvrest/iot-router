@@ -158,8 +158,8 @@ services:
       certbot certonly --non-interactive --agree-tos \
         --webroot -w /var/www/certbot \
         -d "${VPN_SNI_DOMAIN}" -d "${SITE_SNI_DOMAIN}" \
-        --email "${LE_EMAIL}" ${STAGING_FLAG}
-      certbot renew --dry-run ${STAGING_FLAG}
+        --email "${LE_EMAIL}" $${STAGING_FLAG}
+      certbot renew --dry-run $${STAGING_FLAG}
 
   prometheus:
     image: prom/prometheus:v2.52.0
