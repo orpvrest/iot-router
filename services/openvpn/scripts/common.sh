@@ -24,6 +24,8 @@ OPENVPN_UDP_PORT=${OPENVPN_UDP_PORT:-1194}
 OPENVPN_LOCAL_PORT=${OPENVPN_LOCAL_PORT:-1194}
 VPN_MANAGEMENT_HOST=${VPN_MANAGEMENT_HOST:-127.0.0.1}
 VPN_MANAGEMENT_PORT=${VPN_MANAGEMENT_PORT:-5555}
+OPENVPN_USER=${OPENVPN_USER:-nobody}
+OPENVPN_GROUP=${OPENVPN_GROUP:-nogroup}
 VPN_KEEPALIVE=${VPN_KEEPALIVE:-10 120}
 OUTPUT_DIR=${OUTPUT_DIR:-${CLIENTS_DIR}/packages}
 EDGE_TLS_PORT=${EDGE_TLS_PORT:-443}
@@ -135,6 +137,8 @@ function ensure_static_ip_for_client() {
     cat > "${lease_file}" <<EOF
 ifconfig-push ${ip} ${VPN_NETMASK}
 EOF
+    chown "${OPENVPN_USER}:${OPENVPN_GROUP}" "${lease_file}"
+    chmod 640 "${lease_file}"
   fi
 }
 
