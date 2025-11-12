@@ -9,6 +9,7 @@ fi
 
 certbot certonly --non-interactive --agree-tos \
   --webroot -w /var/www/certbot \
+  --cert-name "${VPN_SNI_DOMAIN}" --expand \
   -d "${VPN_SNI_DOMAIN}" -d "${SITE_SNI_DOMAIN}" \
   --email "${LE_EMAIL}" ${STAGING_FLAG}
 
