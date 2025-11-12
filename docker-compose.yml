@@ -250,12 +250,6 @@ services:
       - ./data/openvpn/status:/status:ro
     networks:
       - monitor-net
-    healthcheck:
-      test: ["CMD-SHELL", "/bin/sh -c 'wget -q --spider http://127.0.0.1:9176/metrics'"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
 
 networks:
   edge-net:
