@@ -28,6 +28,8 @@ data/                 # Персистентные данные (openvpn, certbo
    - `VPN_STATIC_CLIENTS` — статические IP для клиентов (`alice:10.8.0.10,bob:10.8.0.11`). Они попадают в `ccd/` автоматически.
    - `VPN_FORWARD_TCP` — определения проброса портов `label:public_port:client_name:client_port` (через запятую). Публичный порт должен попадать в диапазоны `FORWARD_TCP_RANGE_*`.
    - `FORWARD_TCP_RANGE_PRIMARY/SECONDARY` — диапазоны портов, которые `nginx-edge` выделяет под проброс (по умолчанию два диапазона 20020-20039 и 20060-20079; задайте `22-22` чтобы открыть конкретный порт).
+   - `OPENVPN_NAT_INTERFACE` — хостовой интерфейс, через который контейнер будет маскарадинговать клиентский трафик (например, `ens1`). Контейнер запущен в `host`-режиме и сам включает `net.ipv4.ip_forward` и `iptables MASQUERADE`, поэтому ничего на хосте вручную настраивать не нужно.
+   - `STUNNEL_FORWARD_HOST`/`OPENVPN_FORWARD_HOST` — куда стучатся stunnel и внутренние TCP-прокси (по умолчанию `host.docker.internal`, который указывает на хост).
    - Сразу поменяйте `GRAFANA_ADMIN_PASSWORD` (значение в `.env.example` — только пример).
 2. Сгенерируйте временные self-signed сертификаты для dev/тестов (без Let’s Encrypt):
    ```bash
@@ -150,6 +152,7 @@ Nginx/stunnel используют общую директорию, поэтом
 ## Требования/ограничения
 
 - Хост должен иметь доступ к `/dev/net/tun` и выдавать capability `NET_ADMIN` контейнеру `openvpn-core`.
+- `openvpn-core` работает в режиме `network_mode: host` и сам включает IP-forwarding и NAT (переменные `OPENVPN_NAT_INTERFACE`, `OPENVPN_ENABLE_NAT`, `ENABLE_IP_FORWARD`). Убедитесь, что значение интерфейса соответствует реальному uplink на сервере.
 - Для корректных метрик node-exporter/cAdvisor требуется запуск Docker с разрешённым доступом к `/sys`, `/var/run/docker.sock`.
 - В продакшене рекомендуется ограничить доступ к портам 8080/1194 через файрвол и защитить Grafana дополнительной аутентификацией.
 - `GRAFANA_ADMIN_PASSWORD` из `.env.example` предназначен только для dev. Замените его перед запуском и храните отдельно (Vault/secret manager).

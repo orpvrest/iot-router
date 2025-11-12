@@ -11,6 +11,8 @@ trap 'rm -f "$TMP_STREAMS"' EXIT
 mkdir -p /etc/nginx/snippets
 : > "$TMP_STREAMS"
 
+FORWARD_TARGET=${OPENVPN_FORWARD_HOST:-openvpn-core}
+
 if [ -n "${VPN_FORWARD_TCP:-}" ]; then
   printf '%s' "${VPN_FORWARD_TCP}" | tr ',' '\n' | while IFS=':' read -r _ port _ _; do
     port=$(echo "${port}" | xargs)
@@ -18,7 +20,7 @@ if [ -n "${VPN_FORWARD_TCP:-}" ]; then
     cat <<EOS >> "$TMP_STREAMS"
   server {
     listen 0.0.0.0:${port};
-    proxy_pass openvpn-core:${port};
+    proxy_pass ${FORWARD_TARGET}:${port};
   }
 EOS
   done

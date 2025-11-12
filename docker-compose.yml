@@ -4,6 +4,7 @@ services:
     build:
       context: ./services/openvpn
     container_name: openvpn-core
+    network_mode: host
     cap_add:
       - NET_ADMIN
     devices:
@@ -24,6 +25,9 @@ services:
       VPN_FORWARD_TCP: ${VPN_FORWARD_TCP}
       FORWARD_TCP_RANGE_PRIMARY: ${FORWARD_TCP_RANGE_PRIMARY:-20020-20039}
       FORWARD_TCP_RANGE_SECONDARY: ${FORWARD_TCP_RANGE_SECONDARY:-20060-20079}
+      OPENVPN_NAT_INTERFACE: ${OPENVPN_NAT_INTERFACE:-}
+      OPENVPN_ENABLE_NAT: ${OPENVPN_ENABLE_NAT:-true}
+      ENABLE_IP_FORWARD: ${ENABLE_IP_FORWARD:-true}
       DEFAULT_CLIENTS: ${DEFAULT_CLIENTS}
       OPENVPN_TCP_PORT: ${OPENVPN_TCP_PORT}
       OPENVPN_LOCAL_PORT: ${OPENVPN_LOCAL_PORT}
@@ -32,11 +36,6 @@ services:
       EDGE_TLS_PORT: ${EDGE_TLS_PORT:-443}
     volumes:
       - ./data/openvpn:/etc/openvpn
-    ports:
-      - "${OPENVPN_TCP_PORT}:${OPENVPN_LOCAL_PORT}/tcp"
-    networks:
-      - vpn-net
-      - monitor-net
     healthcheck:
       test: ["CMD-SHELL", "/bin/bash -c 'pgrep -f \"/usr/sbin/openvpn\" >/dev/null'"]
       interval: 30s
@@ -89,11 +88,14 @@ services:
       STUNNEL_ACCEPT_PORT: ${STUNNEL_ACCEPT_PORT:-8443}
       STUNNEL_FORWARD_PORT: ${OPENVPN_LOCAL_PORT}
       CERTBOT_CERT_NAME: ${CERTBOT_CERT_NAME:-}
+      STUNNEL_FORWARD_HOST: ${STUNNEL_FORWARD_HOST:-host.docker.internal}
     volumes:
       - ./data/certbot:/certs
     networks:
       - edge-net
       - vpn-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD-SHELL", "/bin/sh -c 'test -f /tmp/stunnel.pid && kill -0 $(cat /tmp/stunnel.pid)'"]
       interval: 30s
@@ -112,6 +114,7 @@ services:
       SITE_SNI_DOMAIN: ${SITE_SNI_DOMAIN}
       CERTBOT_CERT_NAME: ${CERTBOT_CERT_NAME:-}
       VPN_FORWARD_TCP: ${VPN_FORWARD_TCP}
+      OPENVPN_FORWARD_HOST: ${OPENVPN_FORWARD_HOST:-host.docker.internal}
     volumes:
       - ./config/nginx-edge/nginx.conf.tpl:/etc/nginx/templates/nginx.conf.tpl:ro
       - ./config/nginx-edge/ssl-params.conf:/etc/nginx/templates/ssl-params.conf:ro
@@ -127,6 +130,8 @@ services:
     networks:
       - edge-net
       - monitor-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: ["/bin/sh", "/etc/nginx/render.sh"]
     healthcheck:
       test: ["CMD-SHELL", "/bin/sh -c 'wget -q -O- http://127.0.0.1/healthz >/dev/null'"]

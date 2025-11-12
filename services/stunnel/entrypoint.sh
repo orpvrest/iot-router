@@ -24,7 +24,7 @@ if [ -z "${STUNNEL_ACCEPT_HOST:-}" ]; then
   STUNNEL_ACCEPT_HOST="0.0.0.0"
 fi
 if [ -z "${STUNNEL_FORWARD_HOST:-}" ]; then
-  STUNNEL_FORWARD_HOST="openvpn-core"
+  STUNNEL_FORWARD_HOST="host.docker.internal"
 fi
 if [ -z "${STUNNEL_VERIFY_CHAIN:-}" ]; then
   STUNNEL_VERIFY_CHAIN="yes"
