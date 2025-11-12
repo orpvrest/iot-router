@@ -15,7 +15,7 @@
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "count(openvpn_client_tun_tap_read_bytes_total)",
+          "expr": "openvpn_openvpn_server_connected_clients",
           "legendFormat": "clients",
           "refId": "A"
         }
@@ -37,12 +37,12 @@
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "sum(rate(openvpn_client_tcp_udp_read_bytes_total[5m]))",
+          "expr": "sum(rate(openvpn_server_client_received_bytes_total[5m]))",
           "legendFormat": "Ingress",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(openvpn_client_tcp_udp_write_bytes_total[5m]))",
+          "expr": "sum(rate(openvpn_server_client_sent_bytes_total[5m]))",
           "legendFormat": "Egress",
           "refId": "B"
         }

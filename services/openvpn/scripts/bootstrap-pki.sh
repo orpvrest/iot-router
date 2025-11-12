@@ -82,7 +82,7 @@ server ${VPN_NETWORK} ${VPN_NETMASK}
 client-config-dir ${CCD_DIR}
 ifconfig-pool-persist ${OVPN_DIR}/ipp.txt
 status ${STATUS_DIR}/openvpn-status.log 10
-status-version 3
+status-version 2
 log-append ${STATUS_DIR}/openvpn.log
 verb 3
 keepalive ${VPN_KEEPALIVE}
