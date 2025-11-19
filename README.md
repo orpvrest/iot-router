@@ -155,3 +155,80 @@ Nginx/stunnel используют общую директорию, поэтом
 - Для корректных метрик node-exporter/cAdvisor требуется запуск Docker с разрешённым доступом к `/sys`, `/var/run/docker.sock`.
 - В продакшене рекомендуется ограничить доступ к портам 8080/1194 через файрвол и защитить Grafana дополнительной аутентификацией.
 - `GRAFANA_ADMIN_PASSWORD` из `.env.example` предназначен только для dev. Замените его перед запуском и храните отдельно (Vault/secret manager).
+
+## Мониторинг клиентских хостов
+
+Ниже описаны шаги, как добавить Linux-клиента (за VPN) в мониторинг стека при помощи node-exporter, Prometheus и Grafana.
+
+### 1. Установка node-exporter на клиенте
+
+1. На стороне клиента создайте отдельного пользователя и установите бинарь:
+   ```bash
+   sudo useradd --no-create-home --shell /usr/sbin/nologin node_exporter
+   export NODE_EXPORTER_VERSION=1.10.2
+   curl -LO https://github.com/prometheus/node_exporter/releases/download/v${NODE_EXPORTER_VERSION}/node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz
+   tar -xzf node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64.tar.gz
+   sudo mv node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64/node_exporter /usr/local/bin/
+   rm -rf node_exporter-${NODE_EXPORTER_VERSION}.linux-amd64*
+   ```
+2. Создайте unit-файл `/etc/systemd/system/node_exporter.service`:
+   ```ini
+   [Unit]
+   Description=Prometheus Node Exporter
+   Wants=network-online.target
+   After=network-online.target
+
+   [Service]
+   User=node_exporter
+   Group=node_exporter
+   Type=simple
+   ExecStart=/usr/local/bin/node_exporter --web.listen-address=:9100 --collector.systemd --collector.processes
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+3. Разрешите доступ к порту 9100 только из VPN-подсети (пример для `ufw`):
+   ```bash
+   sudo ufw allow from 10.8.0.0/24 to any port 9100 proto tcp
+   ```
+4. Запустите сервис и убедитесь, что endpoint доступен:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now node_exporter
+   curl http://127.0.0.1:9100/metrics | head
+   ```
+
+### 2. Добавление клиента в Prometheus
+
+1. Выясните VPN-IP клиента (например `10.8.0.42`).
+2. В файле `config/prometheus/prometheus.yml` добавьте новый target в job `node-exporter`:
+   ```yaml
+     - job_name: 'node-exporter'
+       static_configs:
+         - targets: ['node-exporter:9100']
+           labels:
+             instance: 'router-host'
+             role: 'core'
+         - targets: ['10.8.0.42:9100']
+           labels:
+             instance: 'client-alice'
+             role: 'vpn-client'
+   ```
+   При необходимости добавьте несколько клиентов, меняя IP и значения меток `instance`/`role` для удобной фильтрации в Grafana.
+3. Примените изменения:
+   ```bash
+   docker compose restart prometheus
+   ```
+4. Убедитесь, что Prometheus видит endpoint (`Status → Targets → job node-exporter` в веб-интерфейсе Prometheus, порт 9090 внутри нагрузки или через `docker compose port prometheus 9090`).
+
+### 3. Отображение метрик в Grafana
+
+1. Откройте Grafana (`https://SITE_SNI_DOMAIN`, либо SNI-домен, указанный для панели мониторинга) и авторизуйтесь.
+2. Убедитесь, что datasource `Prometheus` активен (Provisioning делает это автоматически). Если datasource отсутствует, создайте новый с URL `http://prometheus:9090`.
+3. Импортируйте готовый дашборд (например, официальный `1860 Node Exporter Full`) или создайте собственный:
+   - В редакторе панели выберите datasource Prometheus.
+   - В поле запроса используйте метки `instance`/`role` для фильтрации, например: `rate(node_cpu_seconds_total{mode!="idle", instance="client-alice"}[5m])`.
+   - Для универсальных дашбордов создайте переменную типа `Query` с выражением `label_values(node_uname_info, instance)` и используйте её в графиках.
+4. Сохраните дашборд. Клиент автоматически исчезнет/появится в графиках по факту доступности node-exporter и соответствующих меток.
+
+> ⚠️ Следите за тем, чтобы трафик к порту 9100 был доступен только из VPN/прометей-сервера. Для дополнительной защиты можно запустить node-exporter c `--web.listen-address=10.8.0.42:9100`, чтобы сервис принимал соединения только с VPN-интерфейса.
